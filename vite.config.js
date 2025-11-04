@@ -10,7 +10,8 @@ export default defineConfig({
         page1: resolve(__dirname, 'page1.html'),
         page2: resolve(__dirname, 'page2.html'),
         pageLP: resolve(__dirname, 'pageLessonPlay.html'),
-        admin: resolve(__dirname, 'admin.html')
+        admin: resolve(__dirname, 'admin.html'),
+        classResults: resolve(__dirname, 'classResults.html'),
       },
     },
   },

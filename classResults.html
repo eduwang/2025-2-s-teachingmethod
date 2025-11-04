@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>친구들 결과 보기</title>
+  <link rel="stylesheet" href="src/adminStyles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script type="module" src="/src/classResultsMain.js"></script>
+</head>
+<body>
+  <div class="admin-container">
+    <h1 class="title">친구들 결과 보기</h1>
+
+    <!-- 📅 필터링 컨트롤 섹션 -->
+    <div class="filter-controls">
+      <!-- 첫 번째 줄: 날짜 선택 -->
+      <div class="filter-row">
+        <div class="filter-group date-group">
+          <label for="date-select">날짜 선택</label>
+          <div class="date-checkboxes" id="date-checkboxes">
+            <!-- 체크박스들이 여기에 동적으로 생성됩니다 -->
+          </div>
+        </div>
+      </div>
+      
+      <!-- 두 번째 줄: 사용자 선택 -->
+      <div class="filter-row">
+        <div class="filter-group">
+          <label for="user-select">사용자 선택</label>
+          <select id="user-select"><option value="all">전체 사용자 보기</option></select>
+        </div>
+      </div>
+    </div>
+
+    <div id="results-container"></div>
+  </div>
+</body>
+</html>
+
