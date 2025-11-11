@@ -22,12 +22,15 @@ let baseConversation = [];
 let userConversation = [];
 let selectedScenarioId = null;
 let hot; // handsontable 인스턴스
+const SPECIAL_SCENARIO_ID = "scenario_1762818829737";
+let specialScenarioImage = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   // undoBtn을 선택적으로 가져오기
   const undoBtn = document.getElementById("undo-btn");
   const feedbackBtn = document.getElementById("feedbackBtn");
   const inputText = document.getElementById("inputText");
+  specialScenarioImage = document.getElementById("scenario-special-image");
 
   auth.onAuthStateChanged(async (user) => {
     if (user) {
@@ -436,6 +439,7 @@ async function loadScenario() {
     const selectedId = configDoc.exists() ? configDoc.data().selectedScenarioId : null;
     if (!selectedId) throw new Error("선택된 시나리오 ID가 없습니다.");
     selectedScenarioId = selectedId;
+    updateSpecialScenarioVisuals();
 
     const scenarioDoc = await getDoc(doc(db, "lessonPlayScenarios", selectedScenarioId));
     if (!scenarioDoc.exists()) throw new Error("선택된 시나리오 문서를 찾을 수 없습니다.");
@@ -456,8 +460,18 @@ async function loadScenario() {
       renderExcelTable();
     }
   } catch (error) {
+    updateSpecialScenarioVisuals(false);
     console.error("시나리오 로딩 실패:", error);
     Swal.fire("시나리오 로딩 실패", error.message, "error");
+  }
+}
+
+function updateSpecialScenarioVisuals(forceVisible) {
+  const shouldShow = typeof forceVisible === "boolean"
+    ? forceVisible
+    : selectedScenarioId === SPECIAL_SCENARIO_ID;
+  if (specialScenarioImage) {
+    specialScenarioImage.classList.toggle("is-visible", shouldShow);
   }
 }
 
