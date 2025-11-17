@@ -291,14 +291,8 @@ ${userConversationText}`;
           text: "대화와 GPT 피드백이 제출되었습니다!"
         });
 
-        // 새 카드 위에 추가
-        renderSavedResult({
-          id: docId,
-          createdAt: timestamp,
-          type: 'feedback',
-          conversation: allConv,
-          feedback
-        });
+        // 전체 결과를 다시 불러와서 2열 레이아웃으로 표시
+        await loadUserSavedResults();
 
         userConversation = [];
         renderExcelTable();
