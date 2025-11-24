@@ -17,6 +17,14 @@ import 'handsontable/dist/handsontable.full.min.css';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
+// marked 라이브러리 설정 추가
+marked.setOptions({
+  breaks: true,  // 줄바꿈을 <br>로 변환
+  gfm: true,     // GitHub Flavored Markdown 활성화
+  headerIds: false,  // 헤더 ID 자동 생성 비활성화
+  mangle: false   // 이메일 주소 자동 링크 비활성화
+});
+
 let currentUser = null;
 let baseConversation = [];
 let userConversation = [];
@@ -221,14 +229,32 @@ ${userConversationText}`;
       lineByLineHTML += '<thead><tr style="background: #f3f4f6;"><th style="padding: 0.75rem; text-align: left; border: 1px solid #e5e7eb;">발화자</th><th style="padding: 0.75rem; text-align: left; border: 1px solid #e5e7eb;">대화</th><th style="padding: 0.75rem; text-align: center; border: 1px solid #e5e7eb;">TMSSR</th><th style="padding: 0.75rem; text-align: center; border: 1px solid #e5e7eb;">Potential</th></tr></thead>';
       lineByLineHTML += '<tbody>';
       
-      decisions.forEach(decision => {
-        const potentialColor = decision.potential === 'High' ? '#10b981' : '#ef4444';
-        lineByLineHTML += `<tr>
-          <td style="padding: 0.75rem; border: 1px solid #e5e7eb;">${decision.speaker}</td>
-          <td style="padding: 0.75rem; border: 1px solid #e5e7eb;">${decision.message}</td>
-          <td style="padding: 0.75rem; text-align: center; border: 1px solid #e5e7eb; font-weight: 500;">${decision.tmssr || '-'}</td>
-          <td style="padding: 0.75rem; text-align: center; border: 1px solid #e5e7eb; font-weight: 600; color: ${potentialColor};">${decision.potential || '-'}</td>
-        </tr>`;
+      // 전체 사용자 입력 대화문을 순회하면서 표시
+      userConversations.forEach((conv, idx) => {
+        // decisions 배열에서 해당 발화를 찾기 (speaker와 message로 매칭)
+        const matchedDecision = decisions.find(d => 
+          d.speaker === conv.speaker && 
+          d.message === conv.message
+        );
+        
+        // 발화자가 "교사"인 경우에만 TMSSR과 Potential 표시
+        if (conv.speaker === '교사' && matchedDecision) {
+          const potentialColor = matchedDecision.potential === 'High' ? '#10b981' : '#ef4444';
+          lineByLineHTML += `<tr>
+            <td style="padding: 0.75rem; border: 1px solid #e5e7eb;">${conv.speaker}</td>
+            <td style="padding: 0.75rem; border: 1px solid #e5e7eb;">${conv.message}</td>
+            <td style="padding: 0.75rem; text-align: center; border: 1px solid #e5e7eb; font-weight: 500;">${matchedDecision.tmssr || '-'}</td>
+            <td style="padding: 0.75rem; text-align: center; border: 1px solid #e5e7eb; font-weight: 600; color: ${potentialColor};">${matchedDecision.potential || '-'}</td>
+          </tr>`;
+        } else {
+          // 학생 발화이거나 교사 발화지만 분석 결과가 없는 경우
+          lineByLineHTML += `<tr>
+            <td style="padding: 0.75rem; border: 1px solid #e5e7eb;">${conv.speaker}</td>
+            <td style="padding: 0.75rem; border: 1px solid #e5e7eb;">${conv.message}</td>
+            <td style="padding: 0.75rem; text-align: center; border: 1px solid #e5e7eb;">-</td>
+            <td style="padding: 0.75rem; text-align: center; border: 1px solid #e5e7eb;">-</td>
+          </tr>`;
+        }
       });
       
       lineByLineHTML += '</tbody></table>';
@@ -263,7 +289,18 @@ ${userConversationText}`;
       const enhancedFeedbackPrompt = `${promptToUse}\n\n**사용자 입력 대화문의 Line by Line 분석 결과:**\n${analysisSummary}\n\n위 분석 결과를 참고하여 더 구체적이고 실용적인 피드백을 제공해주세요.`;
 
       const feedback = await getAssistantFeedback(conversationText, enhancedFeedbackPrompt);
-      feedbackPane.innerHTML = marked.parse(feedback);
+      
+      // 마크다운 파싱 시 에러 처리 추가
+      let parsedFeedback;
+      try {
+        parsedFeedback = marked.parse(feedback);
+      } catch (parseError) {
+        console.error('마크다운 파싱 오류:', parseError);
+        // 파싱 실패 시 원본 텍스트를 그대로 표시하되, 줄바꿈 처리
+        parsedFeedback = feedback.replace(/\n/g, '<br>');
+      }
+      
+      feedbackPane.innerHTML = parsedFeedback;
       if (window.MathJax) MathJax.typeset();
 
       // inputText에는 구분 없이 전체 대화문 표시 (기존 동작 유지)
@@ -969,17 +1006,35 @@ const decisionPrompt = `
 const feedbackPrompt = `
 다음은 교사와 학생의 대화 또는 수업 기록입니다. 
 첨부한 문서에 수록된 TMSSR Framework의 내용을 바탕으로, 사용자와 가상의 학생 사이에 이루어진 대화를 분석하여 피드백을 제공해줘.
-표 형태로 정리해줘도 좋을 것 같아
 
-피드백에는 다음이 반드시 포함되어야 해:
-1. TMSSR Framework의 네 가지 요소(Eliciting, Responding, Facilitating, Extending)에 따라 교사의 발화나 상호작용을 분류하고 해석할 것
-2. 교사의 발문이나 피드백 방식이 학생의 수학적 사고에 어떤 영향을 미치는지 평가할 것
-3. TMSSR Framework를 바탕으로 더 효과적인 교수 전략을 구체적으로 제안할 것
+**⚠️ 반드시 다음 구조로 작성해주세요:**
 
-중요:
-- 피드백은 반드시 **마크다운 형식**으로 작성해줘
-- 학생과 교사의 대화를 그대로 반복하거나 인용하지 말고, 핵심 내용을 요약하고 분석 중심으로 작성해줘
-- 첨부된 문서의 내용을 참고하여 TMSSR Framework에 기반한 분석을 명확히 반영해줘
+## 1. Eliciting (유도하기)
+- 이 범주에 해당하는 교사 발화를 분석하고 해석
+- 학생의 수학적 사고에 미치는 영향 평가
+- 개선 방안 제안
+
+## 2. Responding (반응하기)
+- 이 범주에 해당하는 교사 발화를 분석하고 해석
+- 학생의 수학적 사고에 미치는 영향 평가
+- 개선 방안 제안
+
+## 3. Facilitating (촉진하기)
+- 이 범주에 해당하는 교사 발화를 분석하고 해석
+- 학생의 수학적 사고에 미치는 영향 평가
+- 개선 방안 제안
+
+## 4. Extending (확장하기)
+- 이 범주에 해당하는 교사 발화를 분석하고 해석
+- 학생의 수학적 사고에 미치는 영향 평가
+- 개선 방안 제안
+
+**중요 지시사항:**
+- 반드시 위 4개 범주별로 섹션을 나눠서 작성해주세요
+- 각 범주에 해당하는 교사 발화가 없으면 "해당 범주에 해당하는 발화가 없습니다"라고 표시해주세요
+- 피드백은 반드시 **마크다운 형식**으로 작성해주세요 (제목은 ##, 리스트는 -, 강조는 **)
+- 학생과 교사의 대화를 그대로 반복하지 말고, 핵심 내용을 요약하고 분석 중심으로 작성해주세요
+- 첨부된 문서의 내용을 참고하여 TMSSR Framework에 기반한 분석을 명확히 반영해주세요
 `;
 
 // OpenAI Assistants API 호출 (Decision 용 - Line by Line 분석)
