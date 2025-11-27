@@ -1750,6 +1750,8 @@ function initPromptModal() {
   const saveBtn = document.getElementById('prompt-save-btn');
   const resetBtn = document.getElementById('prompt-reset-btn');
   const textarea = document.getElementById('prompt-textarea');
+
+  openBtn.style.display = 'none';
   
   // 모달 열기
   if (openBtn) {
