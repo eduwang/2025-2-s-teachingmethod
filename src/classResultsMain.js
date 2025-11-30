@@ -4,6 +4,11 @@ import { marked } from 'marked';
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "./firebaseConfig.js";
 import Swal from 'sweetalert2';
+import Handsontable from 'handsontable';
+import 'handsontable/dist/handsontable.full.min.css';
+
+// ✅ 관리자 권한 UID 설정 (관리자 데이터는 표시하지 않음)
+const allowedAdmins = ["9EooqWE0p5dU1oCgcr3Xb71XjSm2", "1np9pygNwbPpDBStObjZbVreb0k1", "0nAfoTvvm6Sru8sYUXGdEQN0OJ12"];
 
 // 🔧 DOM 요소 참조
 const userSelect = document.getElementById("user-select");
@@ -11,7 +16,7 @@ const dateCheckboxes = document.getElementById("date-checkboxes");
 const resultsContainer = document.getElementById("results-container");
 
 let allUsers = [];
-let selectedScenarioId = null; // 순환소수 시나리오 ID 저장
+let selectedScenarioId = null; // 관리자가 선택한 현재 시나리오 ID
 let todayString = new Date().toISOString().split("T")[0];
 
 // 🔐 로그인 확인 (모든 로그인 사용자 허용)
@@ -31,8 +36,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // 🔄 결과 페이지 초기화
 async function initResultsPage() {
-  // 순환소수 시나리오 ID 찾기
-  await findCirculatingDecimalScenario();
+  // 관리자가 선택한 현재 시나리오 ID 가져오기
+  await loadSelectedScenario();
   
   // 이벤트 리스너 등록
   userSelect.addEventListener("change", filterAndRender);
@@ -103,23 +108,15 @@ function createScrollTopButton() {
   document.body.appendChild(scrollTopBtn);
 }
 
-// 🔍 순환소수 시나리오 ID 찾기
-async function findCirculatingDecimalScenario() {
+// 🔍 관리자가 선택한 현재 시나리오 ID 로드
+async function loadSelectedScenario() {
   try {
-    const snapshot = await getDocs(collection(db, "lessonPlayScenarios"));
-    snapshot.forEach(doc => {
-      if (doc.id !== "config") {
-        const title = doc.data().title || "";
-        // "순환소수"가 포함된 시나리오 찾기
-        if (title.includes("순환소수")) {
-          selectedScenarioId = doc.id;
-          console.log("순환소수 시나리오 발견:", doc.id, title);
-        }
-      }
-    });
-    
-    if (!selectedScenarioId) {
-      console.warn("순환소수 시나리오를 찾을 수 없습니다.");
+    const configDoc = await getDoc(doc(db, "lessonPlayScenarios", "config"));
+    if (configDoc.exists()) {
+      selectedScenarioId = configDoc.data().selectedScenarioId || null;
+      console.log("선택된 시나리오 ID:", selectedScenarioId);
+    } else {
+      console.warn("시나리오 config 문서를 찾을 수 없습니다.");
     }
   } catch (error) {
     console.error("시나리오 로드 실패:", error);
@@ -140,7 +137,13 @@ async function loadAllDocuments() {
     const docType = doc.id.includes('lessonPlayFeedback') ? 'lessonPlayFeedback' : 
                    doc.id.includes('lessonPlay') ? 'lessonPlay' : null;
     
-    if (data.uid && data.scenarioId && docType) {
+    // 관리자가 선택한 현재 시나리오만 필터링 + 관리자 계정 제외
+    if (data.uid && data.scenarioId && docType && selectedScenarioId && data.scenarioId === selectedScenarioId) {
+      // 관리자 계정 데이터는 제외
+      if (allowedAdmins.includes(data.uid)) {
+        return;
+      }
+      
       const timestamp = data.createdAt?.toDate?.() || data.updatedAt?.toDate?.() || new Date();
       
       const displayTime = timestamp;
@@ -163,11 +166,12 @@ async function loadAllDocuments() {
         ...data,
         type: docType,
         createdAt: displayTime,
-        dateStr: dateStr
+        dateStr: dateStr,
+        potentialAnalysis: data.potentialAnalysis || null
       });
 
-      // 순환소수 시나리오의 피드백이 있는 데이터만 날짜와 사용자 수집
-      if (selectedScenarioId && data.scenarioId === selectedScenarioId && docType === 'lessonPlayFeedback') {
+      // 선택된 시나리오의 피드백 데이터만 날짜와 사용자 수집 (관리자 제외)
+      if (docType === 'lessonPlayFeedback') {
         if (!userMap.has(data.uid)) {
           userMap.set(data.uid, {
             displayName: data.displayName || data.uid,
@@ -270,6 +274,7 @@ function updateAllDatesCheckbox() {
   allCheckbox.checked = allChecked;
 }
 
+
 // 👤 사용자 드롭다운 구성
 function populateUserDropdown() {
   userSelect.innerHTML = "";
@@ -340,7 +345,10 @@ async function filterAndRender() {
   
   // 필터링
   let filteredDocs = allDocuments.filter(doc => {
-    // 순환소수 시나리오만 필터 (항상 적용)
+    // 관리자 계정 데이터 제외 (안전을 위해 한 번 더 체크)
+    if (allowedAdmins.includes(doc.uid)) return false;
+    
+    // 관리자가 선택한 현재 시나리오만 필터 (이미 loadAllDocuments에서 필터링됨, 하지만 안전을 위해)
     if (selectedScenarioId && doc.scenarioId !== selectedScenarioId) return false;
     
     // 날짜 필터
@@ -447,36 +455,99 @@ function renderResultCard(doc, user) {
   leftTitle.textContent = "대화 내용";
   leftColumn.appendChild(leftTitle);
 
-  // 대화문을 테이블 형식으로 표시
-  const conversationTable = document.createElement("div");
-  conversationTable.classList.add("conversation-table");
+  // Handsontable 컨테이너 생성
+  const tableContainer = document.createElement("div");
+  tableContainer.id = `result-table-${doc.id}`;
+  tableContainer.style.width = "100%";
+  tableContainer.style.marginTop = "1rem";
   
+  // Handsontable 데이터 준비
+  const hasAnalysis = doc.potentialAnalysis && Array.isArray(doc.potentialAnalysis) && doc.potentialAnalysis.length > 0;
+  const hasTeacherSpeech = Array.isArray(doc.conversation) && doc.conversation.some(e => e.speaker === '교사');
+  const useFourColumns = hasAnalysis && hasTeacherSpeech;
+  
+  let tableData = [];
   if (Array.isArray(doc.conversation)) {
-    doc.conversation.forEach(entry => {
-      const row = document.createElement("div");
-      row.classList.add("conversation-row");
-      if (entry.isUser) row.classList.add("user-entry");
+    tableData = doc.conversation.map(entry => {
+      // potentialAnalysis에서 해당 발화 찾기
+      let tmssr = '';
+      let potential = '';
       
-      const speaker = document.createElement("span");
-      speaker.classList.add("speaker");
-      speaker.textContent = entry.speaker;
+      if (useFourColumns && entry.speaker === '교사') {
+        const matchedDecision = doc.potentialAnalysis.find(d => 
+          d.speaker === entry.speaker && 
+          d.message === entry.message
+        );
+        if (matchedDecision) {
+          tmssr = matchedDecision.tmssr || '';
+          potential = matchedDecision.potential || '';
+        }
+      }
       
-      const message = document.createElement("span");
-      message.classList.add("message");
-      message.textContent = entry.message;
-      
-      row.appendChild(speaker);
-      row.appendChild(message);
-      conversationTable.appendChild(row);
+      // 모든 행이 같은 컬럼 수를 가져야 함
+      if (useFourColumns) {
+        return [entry.speaker, entry.message, tmssr, potential];
+      } else {
+        return [entry.speaker, entry.message];
+      }
     });
   } else {
-    const row = document.createElement("div");
-    row.classList.add("conversation-row");
-    row.innerHTML = '<span class="message">대화 내용 없음</span>';
-    conversationTable.appendChild(row);
+    tableData = [['', '']];
   }
-
-  leftColumn.appendChild(conversationTable);
+  
+  // 컬럼 헤더 설정
+  const colHeaders = useFourColumns
+    ? ['발화자', '대화', 'TMSSR', 'Potential']
+    : ['발화자', '대화'];
+  
+  // Handsontable 생성 (비동기로 처리)
+  setTimeout(() => {
+    const hot = new Handsontable(tableContainer, {
+      data: tableData,
+      colHeaders: colHeaders,
+      rowHeaders: true,
+      readOnly: true, // 읽기 전용
+      colWidths: useFourColumns
+        ? [120, 300, 120, 100]
+        : [120, 300],
+      minRows: 1,
+      minCols: colHeaders.length,
+      licenseKey: 'non-commercial-and-evaluation',
+      width: '100%',
+      height: 'auto',
+      stretchH: 'all',
+      autoWrapRow: true,
+      autoWrapCol: true,
+      autoRowSize: true,
+      className: 'saved-conversation-table',
+      cells: function(row, col, prop) {
+        const cellProperties = {};
+        const entry = Array.isArray(doc.conversation) ? doc.conversation[row] : null;
+        
+        // 사용자 입력 행 스타일
+        if (entry && entry.isUser) {
+          cellProperties.className = 'user-entry';
+        }
+        
+        // Potential 컬럼 스타일링 (4번째 컬럼, 인덱스 3)
+        if (useFourColumns && col === 3 && entry && entry.speaker === '교사') {
+          const potentialValue = tableData[row][3];
+          if (potentialValue === 'High') {
+            cellProperties.className = (cellProperties.className || '') + ' potential-high';
+          } else if (potentialValue === 'Low') {
+            cellProperties.className = (cellProperties.className || '') + ' potential-low';
+          }
+        }
+        
+        return cellProperties;
+      }
+    });
+    
+    // Handsontable 인스턴스를 컨테이너에 저장
+    tableContainer._hotInstance = hot;
+  }, 100);
+  
+  leftColumn.appendChild(tableContainer);
   columnsContainer.appendChild(leftColumn);
   
   // 오른쪽 컬럼: 피드백이 있는 경우에만 생성

@@ -687,7 +687,8 @@ async function loadUserSavedResults() {
         id: docSnap.id,
         createdAt,
         conversation: data.conversation,
-        feedback: data.feedback
+        feedback: data.feedback,
+        potentialAnalysis: data.potentialAnalysis || null
       };
       
       if (data.type === 'feedback') {
@@ -757,8 +758,8 @@ function renderResultsInColumns(conversationResults, feedbackResults) {
   container.appendChild(columnsContainer);
 }
 
-// 🔵 카드로 저장 결과 출력 (수정됨)
-function renderSavedResult({ id, createdAt, conversation, feedback }, type = 'conversation') {
+// 🔵 카드로 저장 결과 출력 (수정됨 - Handsontable 사용)
+function renderSavedResult({ id, createdAt, conversation, feedback, potentialAnalysis }, type = 'conversation') {
   const box = document.createElement("div");
   box.classList.add("saved-result", `result-${type}`);
   box.setAttribute("data-id", id);
@@ -793,29 +794,94 @@ function renderSavedResult({ id, createdAt, conversation, feedback }, type = 'co
   contentDiv.classList.add("result-content");
   contentDiv.style.display = "none"; // 기본적으로 접혀있음
 
-  // 대화문을 테이블 형식으로 표시
-  const conversationTable = document.createElement("div");
-  conversationTable.classList.add("conversation-table");
+  // Handsontable 컨테이너 생성
+  const tableContainer = document.createElement("div");
+  tableContainer.id = `saved-table-${id}`;
+  tableContainer.style.width = "100%";
+  tableContainer.style.marginTop = "1rem";
   
-  conversation.forEach(entry => {
-    const row = document.createElement("div");
-    row.classList.add("conversation-row");
-    if (entry.isUser) row.classList.add("user-entry");
+  // Handsontable 데이터 준비
+  const hasAnalysis = potentialAnalysis && Array.isArray(potentialAnalysis) && potentialAnalysis.length > 0;
+  const hasTeacherSpeech = conversation.some(e => e.speaker === '교사');
+  const useFourColumns = hasAnalysis && hasTeacherSpeech;
+  
+  const tableData = conversation.map(entry => {
+    // potentialAnalysis에서 해당 발화 찾기
+    let tmssr = '';
+    let potential = '';
     
-    const speaker = document.createElement("span");
-    speaker.classList.add("speaker");
-    speaker.textContent = entry.speaker;
+    if (useFourColumns && entry.speaker === '교사') {
+      const matchedDecision = potentialAnalysis.find(d => 
+        d.speaker === entry.speaker && 
+        d.message === entry.message
+      );
+      if (matchedDecision) {
+        tmssr = matchedDecision.tmssr || '';
+        potential = matchedDecision.potential || '';
+      }
+    }
     
-    const message = document.createElement("span");
-    message.classList.add("message");
-    message.textContent = entry.message;
-    
-    row.appendChild(speaker);
-    row.appendChild(message);
-    conversationTable.appendChild(row);
+    // 모든 행이 같은 컬럼 수를 가져야 함
+    if (useFourColumns) {
+      return [entry.speaker, entry.message, tmssr, potential];
+    } else {
+      return [entry.speaker, entry.message];
+    }
   });
   
-  contentDiv.appendChild(conversationTable);
+  // 컬럼 헤더 설정
+  const colHeaders = useFourColumns
+    ? ['발화자', '대화', 'TMSSR', 'Potential']
+    : ['발화자', '대화'];
+  
+  // Handsontable 생성 (비동기로 처리)
+  setTimeout(() => {
+    const hot = new Handsontable(tableContainer, {
+      data: tableData,
+      colHeaders: colHeaders,
+      rowHeaders: true,
+      readOnly: true, // 읽기 전용
+      colWidths: useFourColumns
+        ? [120, 300, 120, 100]
+        : [120, 300],
+      minRows: 1,
+      minCols: colHeaders.length,
+      licenseKey: 'non-commercial-and-evaluation',
+      width: '100%',
+      height: 'auto',
+      stretchH: 'all',
+      autoWrapRow: true,
+      autoWrapCol: true,
+      autoRowSize: true,
+      className: 'saved-conversation-table',
+      cells: function(row, col, prop) {
+        const cellProperties = {};
+        const entry = conversation[row];
+        
+        // 사용자 입력 행 스타일
+        if (entry && entry.isUser) {
+          cellProperties.className = 'user-entry';
+        }
+        
+        // Potential 컬럼 스타일링 (4번째 컬럼, 인덱스 3)
+        if (useFourColumns && col === 3 && entry && entry.speaker === '교사') {
+          const potentialValue = tableData[row][3];
+          if (potentialValue === 'High') {
+            cellProperties.className = (cellProperties.className || '') + ' potential-high';
+          } else if (potentialValue === 'Low') {
+            cellProperties.className = (cellProperties.className || '') + ' potential-low';
+          }
+        }
+        
+        return cellProperties;
+      }
+    });
+    
+    // Handsontable 인스턴스를 컨테이너에 저장 (나중에 필요할 수 있음)
+    tableContainer._hotInstance = hot;
+  }, 100);
+  
+  contentDiv.appendChild(tableContainer);
 
   // 피드백이 있는 경우에만 표시
   if (feedback && type === 'feedback') {

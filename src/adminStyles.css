@@ -921,3 +921,58 @@ html, body {
 .table-controls button:active {
   transform: translateY(1px);
 }
+
+/* 저장된 대화문 Handsontable 스타일 */
+.saved-conversation-table {
+  margin-top: 1rem;
+}
+
+.saved-conversation-table .handsontable {
+  font-size: 0.95rem;
+}
+
+.saved-conversation-table .handsontable th {
+  background-color: #f3f4f6 !important;
+  color: #374151 !important;
+  font-weight: 600 !important;
+  font-size: 1rem !important;
+  text-align: center !important;
+}
+
+.saved-conversation-table .handsontable td {
+  border: 1px solid #e5e7eb !important;
+  font-size: 0.95rem !important;
+  padding: 8px 12px !important;
+}
+
+/* Potential High/Low 스타일 */
+.saved-conversation-table .handsontable td.potential-high {
+  background-color: #d1fae5 !important;
+  color: #065f46 !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+}
+
+.saved-conversation-table .handsontable td.potential-low {
+  background-color: #fee2e2 !important;
+  color: #991b1b !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+}
+
+/* TMSSR 컬럼 스타일 */
+.saved-conversation-table .handsontable td:nth-child(3) {
+  text-align: center !important;
+  font-weight: 500 !important;
+}
+
+/* 사용자 입력 행 스타일 (저장된 대화문에서) */
+.saved-conversation-table .handsontable td.user-entry {
+  background-color: #f0fdf4 !important;
+}
+
+.saved-conversation-table .handsontable td.user-entry:first-child {
+  background-color: #dcfce7 !important;
+  color: #166534 !important;
+  font-weight: 700 !important;
+}
