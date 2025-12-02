@@ -7,9 +7,6 @@ import Swal from 'sweetalert2';
 import Handsontable from 'handsontable';
 import 'handsontable/dist/handsontable.full.min.css';
 
-// ✅ 관리자 권한 UID 설정 (관리자 데이터는 표시하지 않음)
-const allowedAdmins = ["9EooqWE0p5dU1oCgcr3Xb71XjSm2", "1np9pygNwbPpDBStObjZbVreb0k1", "0nAfoTvvm6Sru8sYUXGdEQN0OJ12"];
-
 // 🔧 DOM 요소 참조
 const userSelect = document.getElementById("user-select");
 const dateCheckboxes = document.getElementById("date-checkboxes");
@@ -137,13 +134,8 @@ async function loadAllDocuments() {
     const docType = doc.id.includes('lessonPlayFeedback') ? 'lessonPlayFeedback' : 
                    doc.id.includes('lessonPlay') ? 'lessonPlay' : null;
     
-    // 관리자가 선택한 현재 시나리오만 필터링 + 관리자 계정 제외
+    // 관리자가 선택한 현재 시나리오만 필터링
     if (data.uid && data.scenarioId && docType && selectedScenarioId && data.scenarioId === selectedScenarioId) {
-      // 관리자 계정 데이터는 제외
-      if (allowedAdmins.includes(data.uid)) {
-        return;
-      }
-      
       const timestamp = data.createdAt?.toDate?.() || data.updatedAt?.toDate?.() || new Date();
       
       const displayTime = timestamp;
@@ -170,7 +162,7 @@ async function loadAllDocuments() {
         potentialAnalysis: data.potentialAnalysis || null
       });
 
-      // 선택된 시나리오의 피드백 데이터만 날짜와 사용자 수집 (관리자 제외)
+      // 선택된 시나리오의 피드백 데이터만 날짜와 사용자 수집
       if (docType === 'lessonPlayFeedback') {
         if (!userMap.has(data.uid)) {
           userMap.set(data.uid, {
@@ -345,9 +337,6 @@ async function filterAndRender() {
   
   // 필터링
   let filteredDocs = allDocuments.filter(doc => {
-    // 관리자 계정 데이터 제외 (안전을 위해 한 번 더 체크)
-    if (allowedAdmins.includes(doc.uid)) return false;
-    
     // 관리자가 선택한 현재 시나리오만 필터 (이미 loadAllDocuments에서 필터링됨, 하지만 안전을 위해)
     if (selectedScenarioId && doc.scenarioId !== selectedScenarioId) return false;
     
