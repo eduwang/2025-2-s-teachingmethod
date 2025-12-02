@@ -13,6 +13,7 @@ export default defineConfig({
         pageLPE: resolve(__dirname, 'pageLessonPlayEnhanced.html'),
         admin: resolve(__dirname, 'admin.html'),
         classResults: resolve(__dirname, 'classResults.html'),
+        assistantTest: resolve(__dirname, 'assistantTest.html'),
       },
     },
   },
