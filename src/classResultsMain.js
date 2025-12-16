@@ -659,39 +659,18 @@ function addDownloadButtons(filteredDocs) {
 function downloadAsCSV(filteredDocs) {
   let csvContent = '';
   
-  // 모든 문서를 확인하여 potentialAnalysis가 있는 문서가 있는지 확인
-  const hasAnyAnalysis = filteredDocs.some(doc => {
-    const hasAnalysis = doc.potentialAnalysis && Array.isArray(doc.potentialAnalysis) && doc.potentialAnalysis.length > 0;
-    const hasTeacherSpeech = Array.isArray(doc.conversation) && doc.conversation.some(e => e.speaker === '교사');
-    return hasAnalysis && hasTeacherSpeech;
-  });
-  
-  const hasAnyFeedback = filteredDocs.some(doc => doc.type === 'lessonPlayFeedback');
-  
-  // 헤더 생성 (첫 번째 문서 기준)
-  if (hasAnyFeedback) {
-    if (hasAnyAnalysis) {
-      csvContent += '사용자,날짜/시간,화자,메시지,TMSSR,Potential,AI 피드백\n';
-    } else {
-      csvContent += '사용자,날짜/시간,화자,메시지,AI 피드백\n';
-    }
-  } else {
-    if (hasAnyAnalysis) {
-      csvContent += '사용자,날짜/시간,화자,메시지,TMSSR,Potential\n';
-    } else {
-      csvContent += '사용자,날짜/시간,화자,메시지\n';
-    }
-  }
-  
   filteredDocs.forEach((doc, index) => {
     const user = allUsers.find(u => u.uid === doc.uid);
     const userName = user?.name || '알 수 없음';
     const dateTime = doc.createdAt.toLocaleString('ko-KR');
     
-    // 각 문서의 potentialAnalysis 확인
-    const hasAnalysis = doc.potentialAnalysis && Array.isArray(doc.potentialAnalysis) && doc.potentialAnalysis.length > 0;
-    const hasTeacherSpeech = Array.isArray(doc.conversation) && doc.conversation.some(e => e.speaker === '교사');
-    const useFourColumns = hasAnalysis && hasTeacherSpeech;
+    if (index === 0) {
+      if (doc.type === 'lessonPlayFeedback') {
+        csvContent += '사용자,날짜/시간,화자,메시지,AI 피드백\n';
+      } else {
+        csvContent += '사용자,날짜/시간,화자,메시지\n';
+      }
+    }
     
     if (Array.isArray(doc.conversation)) {
       doc.conversation.forEach((entry, convIndex) => {
@@ -702,30 +681,9 @@ function downloadAsCSV(filteredDocs) {
           `"${entry.message.replace(/"/g, '""')}"`
         ];
         
-        // TMSSR과 Potential 정보 추가 (헤더에 포함되어 있으면)
-        if (hasAnyAnalysis) {
-          let tmssr = '';
-          let potential = '';
-          
-          if (useFourColumns && entry.speaker === '교사') {
-            const matchedDecision = doc.potentialAnalysis.find(d => 
-              d.speaker === entry.speaker && 
-              d.message === entry.message
-            );
-            if (matchedDecision) {
-              tmssr = matchedDecision.tmssr || '';
-              potential = matchedDecision.potential || '';
-            }
-          }
-          
-          row.push(`"${tmssr}"`);
-          row.push(`"${potential}"`);
-        }
-        
-        // AI 피드백 추가
-        if (hasAnyFeedback && doc.type === 'lessonPlayFeedback' && convIndex === 0) {
+        if (doc.type === 'lessonPlayFeedback' && convIndex === 0) {
           row.push(`"${doc.feedback.replace(/"/g, '""')}"`);
-        } else if (hasAnyFeedback && doc.type === 'lessonPlayFeedback') {
+        } else if (doc.type === 'lessonPlayFeedback') {
           row.push('""');
         }
         
@@ -755,26 +713,12 @@ function downloadSingleCSV(doc, user) {
   const userName = user?.name || '알 수 없음';
   const dateTime = doc.createdAt.toLocaleString('ko-KR');
   
-  // potentialAnalysis가 있는지 확인
-  const hasAnalysis = doc.potentialAnalysis && Array.isArray(doc.potentialAnalysis) && doc.potentialAnalysis.length > 0;
-  const hasTeacherSpeech = Array.isArray(doc.conversation) && doc.conversation.some(e => e.speaker === '교사');
-  const useFourColumns = hasAnalysis && hasTeacherSpeech;
-  
   let csvContent = '';
   
-  // 헤더 생성
   if (doc.type === 'lessonPlayFeedback') {
-    if (useFourColumns) {
-      csvContent += '사용자,날짜/시간,화자,메시지,TMSSR,Potential,AI 피드백\n';
-    } else {
-      csvContent += '사용자,날짜/시간,화자,메시지,AI 피드백\n';
-    }
+    csvContent += '사용자,날짜/시간,화자,메시지,AI 피드백\n';
   } else {
-    if (useFourColumns) {
-      csvContent += '사용자,날짜/시간,화자,메시지,TMSSR,Potential\n';
-    } else {
-      csvContent += '사용자,날짜/시간,화자,메시지\n';
-    }
+    csvContent += '사용자,날짜/시간,화자,메시지\n';
   }
   
   if (Array.isArray(doc.conversation)) {
@@ -786,27 +730,6 @@ function downloadSingleCSV(doc, user) {
         `"${entry.message.replace(/"/g, '""')}"`
       ];
       
-      // TMSSR과 Potential 정보 추가
-      if (useFourColumns) {
-        let tmssr = '';
-        let potential = '';
-        
-        if (entry.speaker === '교사') {
-          const matchedDecision = doc.potentialAnalysis.find(d => 
-            d.speaker === entry.speaker && 
-            d.message === entry.message
-          );
-          if (matchedDecision) {
-            tmssr = matchedDecision.tmssr || '';
-            potential = matchedDecision.potential || '';
-          }
-        }
-        
-        row.push(`"${tmssr}"`);
-        row.push(`"${potential}"`);
-      }
-      
-      // AI 피드백 추가
       if (doc.type === 'lessonPlayFeedback' && convIndex === 0) {
         row.push(`"${doc.feedback.replace(/"/g, '""')}"`);
       } else if (doc.type === 'lessonPlayFeedback') {
@@ -897,26 +820,12 @@ async function downloadAllAsIndividualCSV(filteredDocs) {
       const userName = user?.name || '알 수 없음';
       const dateTime = doc.createdAt.toLocaleString('ko-KR');
       
-      // potentialAnalysis가 있는지 확인
-      const hasAnalysis = doc.potentialAnalysis && Array.isArray(doc.potentialAnalysis) && doc.potentialAnalysis.length > 0;
-      const hasTeacherSpeech = Array.isArray(doc.conversation) && doc.conversation.some(e => e.speaker === '교사');
-      const useFourColumns = hasAnalysis && hasTeacherSpeech;
-      
       let csvContent = '';
       
-      // 헤더 생성
       if (doc.type === 'lessonPlayFeedback') {
-        if (useFourColumns) {
-          csvContent += '사용자,날짜/시간,화자,메시지,TMSSR,Potential,AI 피드백\n';
-        } else {
-          csvContent += '사용자,날짜/시간,화자,메시지,AI 피드백\n';
-        }
+        csvContent += '사용자,날짜/시간,화자,메시지,AI 피드백\n';
       } else {
-        if (useFourColumns) {
-          csvContent += '사용자,날짜/시간,화자,메시지,TMSSR,Potential\n';
-        } else {
-          csvContent += '사용자,날짜/시간,화자,메시지\n';
-        }
+        csvContent += '사용자,날짜/시간,화자,메시지\n';
       }
       
       if (Array.isArray(doc.conversation)) {
@@ -928,27 +837,6 @@ async function downloadAllAsIndividualCSV(filteredDocs) {
             `"${entry.message.replace(/"/g, '""')}"`
           ];
           
-          // TMSSR과 Potential 정보 추가
-          if (useFourColumns) {
-            let tmssr = '';
-            let potential = '';
-            
-            if (entry.speaker === '교사') {
-              const matchedDecision = doc.potentialAnalysis.find(d => 
-                d.speaker === entry.speaker && 
-                d.message === entry.message
-              );
-              if (matchedDecision) {
-                tmssr = matchedDecision.tmssr || '';
-                potential = matchedDecision.potential || '';
-              }
-            }
-            
-            row.push(`"${tmssr}"`);
-            row.push(`"${potential}"`);
-          }
-          
-          // AI 피드백 추가
           if (doc.type === 'lessonPlayFeedback' && convIndex === 0) {
             row.push(`"${doc.feedback.replace(/"/g, '""')}"`);
           } else if (doc.type === 'lessonPlayFeedback') {
